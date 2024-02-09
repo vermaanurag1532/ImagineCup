@@ -1,43 +1,59 @@
-import requests
-import json
+import sys
+import cv2
+import face_recognition
+import os
+import time
+from ultralytics import YOLO
 
-# Your Azure Face API endpoint and subscription key
-endpoint = "https://visionapiface.cognitiveservices.azure.com/"  # Replace with your endpoint
-subscription_key = "207f2ed296064e0bab05643c7115ba8d"  # Replace with your subscription key
-image_url = "./Anurag.jpeg"  # URL of the image to analyze
+def load_images_from_folder(folder):
+    images = []
+    names = []
+    for filename in os.listdir(folder):
+        path = os.path.join(folder, filename)
+        img = face_recognition.load_image_file(path)
+        encoding = face_recognition.face_encodings(img)
+        if len(encoding) > 0:
+            images.append(encoding[0])
+            names.append(os.path.splitext(filename)[0])
+    return images, names
 
-# URL for the Face Detect API
-face_api_url = endpoint + 'face/v1.0/detect'
+def process_frame(known_encodings, known_names, model, frame):
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    face_locations = face_recognition.face_locations(rgb_frame)
+    face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
 
-# Request headers
-headers = {
-    'Ocp-Apim-Subscription-Key': subscription_key,
-    'Content-Type': 'application/json'
-}
+    name = "Unknown"
+    for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
+        matches = face_recognition.compare_faces(known_encodings, face_encoding)
+        name = "Unknown"
 
-# Request parameters
-params = {
-    'returnFaceId': 'true',
-    'returnFaceLandmarks': 'false',
-    # Removed unsupported attributes from 'returnFaceAttributes'
-}
+        if True in matches:
+            first_match_index = matches.index(True)
+            name = known_names[first_match_index]
 
-# Making the POST request to the Azure Face API
-response = requests.post(face_api_url, params=params, headers=headers, json={"url": image_url})
+        cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
+        cv2.putText(frame, name, (left + 6, bottom - 6), cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255), 1)
 
-# Check the response status code
-if response.status_code == 200:
-    # Parse the JSON response
-    try:
-        faces = response.json()
-        if faces:  # Check if any faces were detected
-            for face in faces:
-                # Print the face ID of each detected face
-                print(f"Face ID: {face.get('faceId', 'No Face ID Found')}")
-        else:
-            print("No faces detected.")
-    except json.JSONDecodeError:
-        print("Error decoding the JSON response.")
-else:
-    # If the response was not successful, print the error
-    print(f"Error: {response.status_code}. {response.text}")
+    img_path = os.path.join("unknown_faces" if name == "Unknown" else "known_faces", f"{name}_{int(time.time())}.jpg")
+    cv2.imwrite(img_path, frame)
+
+    return img_path, name
+
+def main(image_path):
+    known_encodings, known_names = load_images_from_folder("known_faces")
+    unknown_faces_dir = "unknown_faces"
+    os.makedirs(unknown_faces_dir, exist_ok=True)
+
+    frame = cv2.imread(image_path)
+    if frame is None:
+        print("Error: Could not read the image.")
+        return
+
+    img_path, name = process_frame(known_encodings, known_names, YOLO("yolov8n.pt"), frame)
+    print(f"{img_path},{name}")
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python cv.py <image_path>")
+    else:
+        main(sys.argv[1])
