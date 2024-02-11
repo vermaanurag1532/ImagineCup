@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', function () {
         zoom: 13,
         authOptions: {
             authType: 'subscriptionKey',
-            subscriptionKey: 'MD89LNmITGiy4jh_NkMd7IRVu1V3oLmSxxcwcuMwJHM'
+            subscriptionKey: '_QsHASv09lqprGn6f0GlItJbM6QYkd4pMQNRebPy10o'
         }
     });
 
@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     });
 
                     // Use Azure Maps Search service for reverse geocoding
-                    var searchURL = `https://atlas.microsoft.com/search/address/reverse/json?api-version=1.0&query=${latitude},${longitude}&subscription-key=MD89LNmITGiy4jh_NkMd7IRVu1V3oLmSxxcwcuMwJHM`;
+                    var searchURL = `https://atlas.microsoft.com/search/address/reverse/json?api-version=1.0&query=${latitude},${longitude}&subscription-key=_QsHASv09lqprGn6f0GlItJbM6QYkd4pMQNRebPy10o`;
                     fetch(searchURL)
                     .then(response => response.json())
                     .then(data => {
