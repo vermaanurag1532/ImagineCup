@@ -5,9 +5,9 @@ from msrest.authentication import CognitiveServicesCredentials
 from azure.cognitiveservices.speech import SpeechConfig, SpeechSynthesizer
 
 # Set up your Azure credentials
-COMPUTER_VISION_SUBSCRIPTION_KEY = "97e6b982ca374e9ebb4aaed876ff1070"
-COMPUTER_VISION_ENDPOINT = "https://visioncvapi.cognitiveservices.azure.com/"
-SPEECH_SUBSCRIPTION_KEY = "13fec04be78d4d10b55a40d039aa47be"
+COMPUTER_VISION_SUBSCRIPTION_KEY = "decaf1b743f7432fb47e734ab936f80a"
+COMPUTER_VISION_ENDPOINT = "https://visionarycomputervisionapi.cognitiveservices.azure.com/"
+SPEECH_SUBSCRIPTION_KEY = "ce8b0a8e8e354e32a187dfe2d1fea77b"
 SPEECH_SERVICE_REGION = "centralindia"
 
 # Initialize Computer Vision client
