@@ -22,8 +22,9 @@ const storage = multer.diskStorage({
         cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
-        let filename = req.body.imageName || Date.now().toString();
-        filename += path.extname(file.originalname);
+        const filename = req.body.imageName
+        ? `${req.body.imageName}${path.extname(file.originalname)}`
+        : `${file.originalname}`;
         cb(null, filename);
     }
 });
@@ -86,6 +87,8 @@ app.get('/known-images', (req, res) => {
     });
 });
 
+
+
 app.get('/unknown-images', (req, res) => {
     fs.readdir(unknownUploadDir, (err, files) => {
         if (err) {
@@ -95,6 +98,67 @@ app.get('/unknown-images', (req, res) => {
         }
     });
 });
+
+// Serve an image from known_faces or unknown_faces based on the query
+app.get('/get-image', (req, res) => {
+    const { type, filename } = req.query;
+
+    if (!type || !filename) {
+        return res.status(400).send('Missing type or filename parameter');
+    }
+
+    let folderPath;
+    if (type === 'known') {
+        folderPath = path.join(__dirname, uploadDir);
+    } else if (type === 'unknown') {
+        folderPath = path.join(__dirname, unknownUploadDir);
+    } else {
+        return res.status(400).send('Invalid type parameter. Use "known" or "unknown".');
+    }
+
+    const filePath = path.join(folderPath, filename);
+
+    // Check if the file exists before sending
+    fs.access(filePath, fs.constants.F_OK, (err) => {
+        if (err) {
+            return res.status(404).send('File not found');
+        }
+
+        res.sendFile(filePath);
+    });
+});
+
+app.get('/logs', (req, res) => { 
+    const logFilePath = path.join(__dirname, 'log.txt');
+
+    fs.readFile(logFilePath, 'utf8', (err, data) => {
+        if (err) {
+            console.error('Failed to read log file:', err);
+            return res.status(500).send('Failed to retrieve logs');
+        }
+
+        // Split logs into lines and filter empty lines
+        const logs = data
+            .split('\n')
+            .filter(line => line.trim() !== '')
+            .map(line => {
+                const [dateTime, person] = line.split(' - ');
+                const [date, time] = dateTime.split(' ');
+                const personName = person.replace('Person: ', '');
+
+                return {
+                    date,
+                    time,
+                    person: personName
+                };
+            })
+            .reverse();
+
+        res.json(logs);
+    });
+});
+
+
 
 // Move image from unknown to known directory
 app.post('/move-image', (req, res) => {
@@ -126,23 +190,43 @@ app.post('/upload-frame', frameUpload.single('frame'), (req, res) => {
 
     faceRecognitionProcess.stdout.on('data', (data) => {
         const output = data.toString().trim();
-        const faceResult = output.split(','); // Assuming output format is "imagePath,personName"
+        const faceResult = output.split(','); 
+        const personName = faceResult[1] || 'unknown'; 
         
-        // Call object.py for object recognition in the callback of face recognition
         const objectRecognitionProcess = spawn('python', ['object.py', framePath]);
 
         objectRecognitionProcess.stdout.on('data', (objectData) => {
             const objectOutput = objectData.toString().trim();
-            // Assuming output format for object.py is "processedImagePath,object1,object2,..."
             const objectResults = objectOutput.split(',');
-            const imagePath = objectResults.shift(); // Remove the first element as the image path
-            const detectedObjects = objectResults; // Remaining elements are detected objects
-            
+            const imagePath = objectResults.shift();
+            const detectedObjects = objectResults;
+
             // Combine results from face and object recognition
-            res.json({
-                faceRecognition: { imagePath: faceResult[0], personName: faceResult[1] },
+            const result = {
+                faceRecognition: { imagePath: faceResult[0], personName },
                 objectRecognition: { imagePath, detectedObjects }
+            };
+
+            // Save only the time and person information to the log file
+            const now = new Date();
+            const formattedDate = now.toLocaleString('en-GB', {
+                hour: '2-digit',
+                minute: '2-digit',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+            }).replace(',', ''); // Remove comma between date and time
+            
+            const logEntry = `${formattedDate} - Person: ${personName}\n`;
+            fs.appendFile('log.txt', logEntry, (err) => {
+                if (err) {
+                    console.error('Failed to write to log file', err);
+                } else {
+                    console.log('Log entry added');
+                }
             });
+
+            res.json(result);
         });
 
         objectRecognitionProcess.stderr.on('data', (data) => {
@@ -167,6 +251,8 @@ app.post('/upload-frame', frameUpload.single('frame'), (req, res) => {
         }
     });
 });
+
+
 
 
 app.delete('/delete-image', (req, res) => {
